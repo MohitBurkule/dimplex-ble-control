@@ -20,3 +20,15 @@ Heaters accept one connection at a time; the CLI disconnects after each command 
 
 ## Android
 `android/` — built by GitHub Actions; download the APK from the workflow artifacts or Releases. See `docs/tasker.md` and `docs/roadmap.md`.
+
+## Heater simulator (test without hardware)
+`sim/heater_sim.py` turns a Linux laptop into a fake heater over BLE, speaking the same protocol
+(modes, Eco/Manual by setpoint, timer schedule + "off" schedule, element demand, room temperature
+model, drifting clock) and reproducing real-hardware quirks: long writes/reads beyond the MTU fail
+(status 133 on Android until MTU is negotiated), one connection at a time, passkey pairing required,
+no standby mode, empty schedule slots rejected. `--no-quirks` for an ideal heater.
+```
+uv run --with dbus-fast sim/heater_sim.py --name SIM001 --room 16 --speed 20
+```
+The pairing PIN is printed in the terminal. Run it on a different machine from the one running the CLI.
+Model tests: `cd sim && uv run --with dbus-fast --with pytest python -m pytest -q`.
