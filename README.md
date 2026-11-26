@@ -31,4 +31,17 @@ no standby mode, empty schedule slots rejected. `--no-quirks` for an ideal heate
 uv run --with dbus-fast sim/heater_sim.py --name SIM001 --room 16 --speed 20
 ```
 The pairing PIN is printed in the terminal. Run it on a different machine from the one running the CLI.
+
+One Bluetooth adapter = one BLE identity, so one simulated heater per adapter. To simulate several
+heaters for the phone app on one laptop, plug in cheap USB BLE dongles and run one process each:
+`--adapter hci1 --name SIM002`, `--adapter hci2 --name SIM003`, …
+
+### No heaters at all: CLI simulation
+`--sim` (or `DIMPLEX_SIM=1`) simulates every heater in your config inside the CLI, no Bluetooth
+needed; state persists between runs in `~/.local/share/dimplex/sim_state.pkl` and the rooms keep
+warming/cooling in real time:
+```
+uv run --with dbus-fast cli/dimplex.py --config heaters.example.json --sim status
+DIMPLEX_SIM=1 uv run --with dbus-fast cli/dimplex.py off Kitchen
+```
 Model tests: `cd sim && uv run --with dbus-fast --with pytest python -m pytest -q`.

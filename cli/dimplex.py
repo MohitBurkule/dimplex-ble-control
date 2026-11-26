@@ -383,6 +383,15 @@ async def cmd_clock(bz, hs, a):
 
 async def cmd_watch(bz, hs, a):
     """Poll every heater every --interval s; between polls record advert RSSI (presence)."""
+    if a.sim:
+        while True:
+            await cmd_status(bz, hs, a)
+            with db() as c:
+                for h in hs:
+                    c.execute("insert into rssi values(?,?,?)",
+                              (int(time.time()), h["label"], bz.models[h["address"]].rssi))
+            await bz.__aexit__()  # persist sim state each round
+            await asyncio.sleep(a.interval)
     paths = {dev_path(h["address"]): h["label"] for h in hs}
 
     def on_props(path):
@@ -446,6 +455,8 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config")
     ap.add_argument("--keep", action="store_true", help="stay connected after the command")
+    ap.add_argument("--sim", action="store_true", default=bool(os.environ.get("DIMPLEX_SIM")),
+                    help="simulate the configured heaters in-process (no Bluetooth); or DIMPLEX_SIM=1")
     sp = ap.add_subparsers(dest="cmd", required=True)
     for n in ("status", "pair", "on"):
         p = sp.add_parser(n); p.add_argument("heater", nargs="?", default="all")
@@ -473,7 +484,10 @@ def main():
     hs = pick(heaters, a.heater)
 
     async def run():
-        async with Bluez(heaters) as bz:
+        backend = Bluez
+        if a.sim:
+            from simbackend import SimBluez as backend
+        async with backend(heaters) as bz:
             await {"status": cmd_status, "set": cmd_set, "mode": cmd_mode,
                    "pair": cmd_pair, "watch": cmd_watch, "clock": cmd_clock}[a.cmd](bz, hs, a)
     try:

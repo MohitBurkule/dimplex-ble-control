@@ -100,6 +100,7 @@ class Heater:
         if x == 0x1002:
             return [0, 3, self.sched_sel] + self.schedule[self.sched_sel] + [0, 0, 0, 0]
         if x == 0x0002:
+            self.elements_on = self.room < self.target() - 0.2  # thermostat reacts immediately
             n = self.trac_sel
             on = n in (1, 2) and self.elements_on
             return [n, 1 if on else 0, 100 if on else 0] if n in (1, 2) else [n, 0, 0]
@@ -290,9 +291,14 @@ async def main():
     ap.add_argument("--room", type=float, default=18.0)
     ap.add_argument("--speed", type=float, default=1.0, help="room-temperature time multiplier")
     ap.add_argument("--quiet", action="store_true", help="don't log reads/writes")
+    ap.add_argument("--adapter", default="hci0",
+                    help="one simulated heater per Bluetooth adapter: run one process per USB dongle")
     ap.add_argument("--no-quirks", action="store_true", help="behave like an ideal heater")
     a = ap.parse_args()
 
+    global ADAPTER, APP
+    ADAPTER = f"/org/bluez/{a.adapter}"
+    APP = f"{APP}/{a.adapter}"   # separate object tree per process/adapter
     h = Heater(a.model, a.watts, a.room)
     Characteristic.quirks = not a.no_quirks
     bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
