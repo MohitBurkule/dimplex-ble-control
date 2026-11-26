@@ -12,6 +12,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
 import java.util.UUID
 
@@ -27,6 +28,10 @@ class GattSession private constructor(private val device: BluetoothDevice) : Blu
     private val opLock = Mutex()
     private var connected = CompletableDeferred<Boolean>()
     private var servicesDone = CompletableDeferred<Int>()
+    private val mtuDone = CompletableDeferred<Int>()
+    /** ATT MTU; payload per write is mtu - 3. */
+    @Volatile var mtu = 23
+        private set
     private var pending: CompletableDeferred<Pair<Int, Any?>>? = null
     @Volatile var disconnected = false
         private set
@@ -41,6 +46,9 @@ class GattSession private constructor(private val device: BluetoothDevice) : Blu
             try {
                 withTimeout(timeoutMs) {
                     if (!s.connected.await()) throw GattException("connect failed")
+                    // Default MTU 23 forces 'long writes' for the 31-byte schedule, which the heaters
+                    // reject (status 133). BlueZ negotiates a big MTU itself; do the same here.
+                    if (s.gatt!!.requestMtu(247)) withTimeoutOrNull(3_000) { s.mtuDone.await() }
                     s.gatt!!.discoverServices()
                     val st = s.servicesDone.await()
                     if (st != BluetoothGatt.GATT_SUCCESS) throw GattException("discovery status $st")
@@ -64,6 +72,11 @@ class GattSession private constructor(private val device: BluetoothDevice) : Blu
     }
 
     override fun onServicesDiscovered(g: BluetoothGatt, status: Int) { servicesDone.complete(status) }
+
+    override fun onMtuChanged(g: BluetoothGatt, mtu: Int, status: Int) {
+        if (status == BluetoothGatt.GATT_SUCCESS) this.mtu = mtu
+        mtuDone.complete(mtu)
+    }
 
     @Deprecated("pre-33 callback")
     override fun onCharacteristicRead(g: BluetoothGatt, c: BluetoothGattCharacteristic, status: Int) {
