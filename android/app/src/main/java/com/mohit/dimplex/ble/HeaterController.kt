@@ -95,7 +95,8 @@ class HeaterController(private val ctx: Context, private val db: AppDb, private 
         val rated = opt { Dimplex.le16(s.read(Dimplex.POWER_LOADING)) }
         val watts = if (rated != null && elems != null) rated * (elems.filter { it.first }.maxOfOrNull { it.second } ?: 0) / 100 else null
         val off = mode == Dimplex.MODE_TIMER && (opt {
-            s.write(Dimplex.SCHEDULE, Dimplex.scheduleReadCmd(0)); Dimplex.isOffSchedule(s.read(Dimplex.SCHEDULE))
+            s.write(Dimplex.SCHEDULE, Dimplex.scheduleReadCmd(0)); kotlinx.coroutines.delay(400)
+            Dimplex.isOffSchedule(s.read(Dimplex.SCHEDULE))
         } ?: false)
         val err = opt { Dimplex.u8(s.read(Dimplex.ERROR), 0) }
         val clock = opt { Dimplex.clock(s.read(Dimplex.CLOCK)) }
