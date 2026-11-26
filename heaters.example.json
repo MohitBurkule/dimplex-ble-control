@@ -1,0 +1,6 @@
+{
+  "heaters": [
+    {"label": "Kitchen",     "address": "AA:BB:CC:DD:EE:01", "pin": "123456"},
+    {"label": "Living room", "address": "AA:BB:CC:DD:EE:02", "pin": "234567"}
+  ]
+}

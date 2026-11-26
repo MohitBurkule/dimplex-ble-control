@@ -1,0 +1,11 @@
+heaters.json
+*.local.json
+__pycache__/
+*.db
+.venv/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.apk
+*.keystore
