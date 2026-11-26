@@ -32,9 +32,22 @@ object Pairing {
 
     fun isBonded(d: BluetoothDevice) = d.bondState == BluetoothDevice.BOND_BONDED
 
+    /**
+     * Bond over LE explicitly. A device made from a bare address has unknown type, and plain
+     * createBond() may then try Classic Bluetooth, which these LE-only heaters never answer.
+     * createBond(int transport) is hidden API but present on all Android versions we target.
+     */
+    private fun createBondLe(d: BluetoothDevice): Boolean = runCatching {
+        d.javaClass.getMethod("createBond", Int::class.javaPrimitiveType)
+            .invoke(d, BluetoothDevice.TRANSPORT_LE) as Boolean
+    }.getOrElse {
+        Log.w(TAG, "createBond(TRANSPORT_LE) unavailable, falling back", it)
+        d.createBond()
+    }
+
     suspend fun ensureBonded(ctx: Context, device: BluetoothDevice, label: String, pin: String): Boolean {
         if (isBonded(device)) return true
-        val done = CompletableDeferred<Boolean>()
+        var done = CompletableDeferred<Boolean>()
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context, i: Intent) {
                 val d: BluetoothDevice? = if (Build.VERSION.SDK_INT >= 33)
@@ -71,11 +84,17 @@ object Pairing {
         }
         ContextCompat.registerReceiver(ctx, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
         return try {
-            if (!device.createBond()) {
-                Log.w(TAG, "createBond returned false for $label")
+            // Heaters often refuse the first pairing attempt (seen on BlueZ too); retry.
+            for (attempt in 1..4) {
                 if (isBonded(device)) return true
+                val started = createBondLe(device)
+                Log.i(TAG, "$label: createBond attempt $attempt started=$started")
+                val ok = if (started) withTimeoutOrNull(45_000) { done.await() } ?: isBonded(device) else false
+                if (ok) return true
+                done = CompletableDeferred()
+                kotlinx.coroutines.delay(2000L * attempt)
             }
-            withTimeoutOrNull(60_000) { done.await() } ?: isBonded(device)
+            isBonded(device)
         } finally {
             runCatching { ctx.unregisterReceiver(receiver) }
             pinPrompt.value = null
