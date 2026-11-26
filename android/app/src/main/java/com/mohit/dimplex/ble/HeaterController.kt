@@ -94,6 +94,9 @@ class HeaterController(private val ctx: Context, private val db: AppDb, private 
         val heating = elems?.any { it.first }
         val rated = opt { Dimplex.le16(s.read(Dimplex.POWER_LOADING)) }
         val watts = if (rated != null && elems != null) rated * (elems.filter { it.first }.maxOfOrNull { it.second } ?: 0) / 100 else null
+        val off = mode == Dimplex.MODE_TIMER && (opt {
+            s.write(Dimplex.SCHEDULE, Dimplex.scheduleReadCmd(0)); Dimplex.isOffSchedule(s.read(Dimplex.SCHEDULE))
+        } ?: false)
         val err = opt { Dimplex.u8(s.read(Dimplex.ERROR), 0) }
         val clock = opt { Dimplex.clock(s.read(Dimplex.CLOCK)) }
         val pre = opt { Dimplex.u8(s.read(Dimplex.PREEMPTIVE), 0)?.let { it != 0 } }
@@ -107,7 +110,7 @@ class HeaterController(private val ctx: Context, private val db: AppDb, private 
         }
         opt { s.rssi() }?.let { db.rssi().insert(RssiSample(heaterId = h.id, ts = System.currentTimeMillis(), rssi = it, source = "conn")) }
         if (mode == null && sp == null && room == null) throw GattException("no data read (not paired?)")
-        val r = Reading(heaterId = h.id, ts = System.currentTimeMillis(), mode = mode, setpoint = sp, roomTemp = room, heating = heating, error = err, watts = watts)
+        val r = Reading(heaterId = h.id, ts = System.currentTimeMillis(), mode = mode, setpoint = sp, roomTemp = room, heating = heating, error = err, watts = watts, off = off)
         db.readings().insert(r)
         broadcastState(h, r)
         return r
@@ -180,7 +183,8 @@ class HeaterController(private val ctx: Context, private val db: AppDb, private 
             putExtra("label", h.label)
             putExtra("address", h.address)
             putExtra("ts", r.ts)
-            r.mode?.let { putExtra("mode", it); putExtra("mode_name", Dimplex.modeName(it)) }
+            r.mode?.let { putExtra("mode", it); putExtra("mode_name", if (r.off) "Off" else Dimplex.modeName(it)) }
+            putExtra("off", r.off)
             r.setpoint?.let { putExtra("setpoint", it) }
             r.roomTemp?.let { putExtra("room_temp", it) }
             r.heating?.let { putExtra("heating", it) }

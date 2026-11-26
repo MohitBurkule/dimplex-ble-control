@@ -26,6 +26,8 @@ C_MODE, C_TARGET, C_RANGE, C_ROOM, C_TRAC, C_MODEL, C_ERROR = (
     cu(0x1001), cu(0x1023), cu(0x1006), cu(0x0008), cu(0x0002), cu(0x2005), cu(0x1011))
 C_CLOCK = cu(0x0006)
 C_SCHEDULE, C_POWER = cu(0x1002), cu(0x000a)
+# True off = User Timer whose only slots are 1-min 7 °C slots at 03:00-03:04
+OFF_SLOTS = [b for i in range(4) for b in (3, i, 3, i + 1, 7, 0)]
 
 
 # ---------- config ----------
@@ -204,6 +206,9 @@ class Heater:
 
     async def _c(self, uuid):
         p = (await self.chars()).get(uuid)
+        if not p:  # GATT discovery can lag behind ServicesResolved; refresh once
+            await asyncio.sleep(3); self._chars = None
+            p = (await self.chars()).get(uuid)
         if not p:
             raise RuntimeError(f"{self.h['label']}: characteristic {uuid[4:8]} missing")
         return await self.bz._iface(p, "org.bluez.GattCharacteristic1")
@@ -229,6 +234,10 @@ class Heater:
             await self.write(C_TRAC, [n, 0, 0]); r = await self.read(C_TRAC)
             if len(r) >= 3 and r[0] == n and r[1]:
                 heating, demand = True, max(demand, r[2])
+        off = False
+        if mode[0] == 1:  # timer: is it running our off schedule?
+            await self.write(C_SCHEDULE, [0, 3, 0]); sch = await self.read(C_SCHEDULE)
+            off = list(sch[3:27]) == OFF_SLOTS
         p = await self.read(C_POWER)
         watts = (p[0] | p[1] << 8) * demand // 100 if len(p) >= 2 else None  # estimate, not metered
         err = await self.read(C_ERROR)
@@ -240,7 +249,7 @@ class Heater:
             pass
         return {
             "label": self.h["label"], "model": model,
-            "mode": MODES.get(mode[0], str(mode[0])), "target": target[0],
+            "mode": "off" if off else MODES.get(mode[0], str(mode[0])), "target": target[0],
             "room": room[1] + room[2] / 10 if len(room) >= 3 else None,
             "heating": heating, "watts": watts,
             "error": err[0] if err else None, "rssi": rssi, "ts": int(time.time()),
@@ -266,9 +275,8 @@ class Heater:
     async def off(self):
         """True off: User Timer whose only slots are four 1-minute 7 °C slots at 03:00-03:04
         (empty slots are rejected). Between slots the target is 0 °C. Overwrites the timer schedule."""
-        slots = [b for i in range(4) for b in (3, i, 3, i + 1, 7, 0)]
         for day in range(7):
-            await self.write(C_SCHEDULE, [1, 3, day] + slots + [0, 0, 0, 0])
+            await self.write(C_SCHEDULE, [1, 3, day] + OFF_SLOTS + [0, 0, 0, 0])
             await asyncio.sleep(0.3)
         await self.write(C_MODE, [1, 3, 0, 0, 0, 0])
 
@@ -309,8 +317,6 @@ def save(s):
 
 def show(s):
     room = f"{s['room']:.1f}°C" if s["room"] is not None else "?"
-    if s["mode"] == "timer" and s["target"] == 0:
-        s = s | {"mode": "OFF"}
     heat = {True: "heating", False: "idle", None: "?"}[s["heating"]]
     print(f"{s['label']:<12} {s['mode']:<7} target {s['target']:>2}°C  room {room:<7} {heat:<8}"
           f"{'  ~%dW' % s['watts'] if s.get('watts') else ''}  rssi {s['rssi']}  {s['model']}" + (f"  ERROR {s['error']}" if s["error"] else ""))

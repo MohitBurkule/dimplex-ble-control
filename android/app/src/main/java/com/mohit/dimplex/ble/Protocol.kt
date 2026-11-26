@@ -72,8 +72,14 @@ object Dimplex {
         return (listOf(1, 3, day) + slots + listOf(0, 0, 0, 0)).map { it.toByte() }.toByteArray()
     }
 
-    /** Off = timer with target 0 (between the off-schedule slots). */
-    fun isOff(mode: Int?, setpoint: Int?) = mode == MODE_TIMER && setpoint == 0
+    fun scheduleReadCmd(day: Int) = byteArrayOf(0, 3, day.toByte())
+
+    /** True if a schedule read-back (31 bytes) is our off schedule. */
+    fun isOffSchedule(b: ByteArray?): Boolean {
+        if (b == null || b.size < 27) return false
+        val want = offScheduleCmd(b[2].toInt())
+        return (3 until 27).all { b[it] == want[it] }
+    }
 
     fun modeCmd(mode: Int) = byteArrayOf(mode.toByte(), 0, 0, 0, 0, 0)
     fun tempCmd(t: Int) = byteArrayOf(t.toByte(), 0)
