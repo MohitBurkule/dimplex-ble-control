@@ -1,6 +1,10 @@
 package com.mohit.dimplex.ui
 
 import android.Manifest
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -22,8 +26,31 @@ import com.mohit.dimplex.app
 import com.mohit.dimplex.service.TrackerService
 
 class MainActivity : ComponentActivity() {
-    private val permLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+    private val enableBt = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         if (app.settings.serviceEnabled) TrackerService.start(this)
+    }
+    private var askedBt = false
+
+    private val permLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        if (!ensureBluetoothOn() && app.settings.serviceEnabled) TrackerService.start(this)
+    }
+
+    /** Apps can't switch Bluetooth on silently (Android 13+); this shows the system "Turn on?" prompt. */
+    private fun ensureBluetoothOn(): Boolean {
+        val adapter = getSystemService(BluetoothManager::class.java)?.adapter ?: return false
+        if (adapter.isEnabled || askedBt) return false
+        if (Build.VERSION.SDK_INT >= 31 &&
+            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) return false
+        askedBt = true
+        enableBt.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
+        return true
+    }
+
+    // Ask once each time the app comes to the foreground; declining isn't re-asked until next time.
+    override fun onStart() {
+        super.onStart()
+        askedBt = false
+        ensureBluetoothOn()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
