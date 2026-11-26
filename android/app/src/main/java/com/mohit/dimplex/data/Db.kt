@@ -62,6 +62,9 @@ interface RssiDao {
     fun history(id: String, since: Long): Flow<List<RssiSample>>
 
     /** Mean RSSI per heater over a recent window (for the nearest-heater hint). */
+    @Query("SELECT * FROM rssi WHERE ts >= :since ORDER BY ts")
+    fun allSince(since: Long): Flow<List<RssiSample>>
+
     @Query("SELECT heaterId, AVG(rssi) AS rssi, MAX(ts) AS ts FROM rssi WHERE ts >= :since GROUP BY heaterId")
     fun recent(since: Long): Flow<List<HeaterRssi>>
 

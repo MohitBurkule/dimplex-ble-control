@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -103,6 +104,7 @@ fun DashboardScreen(nav: NavController) {
     Scaffold(topBar = {
         TopAppBar(title = { Text("Dimplex Heaters") }, actions = {
             IconButton(onClick = { scope.launch { app.controller.pollAll() } }) { Icon(Icons.Default.Refresh, "Refresh all") }
+            IconButton(onClick = { nav.navigate("timeline") }) { Icon(Icons.Default.Timeline, "Room timeline") }
             IconButton(onClick = { nav.navigate("floorplan") }) { Icon(Icons.Default.Map, "Floorplan") }
             IconButton(onClick = { nav.navigate("heaters") }) { Icon(Icons.Default.List, "Heaters") }
             IconButton(onClick = { nav.navigate("settings") }) { Icon(Icons.Default.Settings, "Settings") }

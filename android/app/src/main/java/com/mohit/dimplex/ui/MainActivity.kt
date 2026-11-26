@@ -90,5 +90,6 @@ fun AppNav() {
         composable("heaters") { HeatersScreen(nav) }
         composable("settings") { SettingsScreen(nav) }
         composable("floorplan") { FloorplanScreen(nav) }
+        composable("timeline") { TimelineScreen(nav) }
     }
 }
