@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileOpen
@@ -68,7 +69,8 @@ fun HeatersScreen(nav: NavController) {
             navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
             actions = {
                 IconButton(onClick = { picker.launch(arrayOf("application/json", "text/*", "*/*")) }) { Icon(Icons.Default.FileOpen, "Import JSON") }
-                IconButton(onClick = { adding = true }) { Icon(Icons.Default.Add, "Add") }
+                IconButton(onClick = { nav.navigate("discover") }) { Icon(Icons.Default.Search, "Find heaters") }
+                IconButton(onClick = { adding = true }) { Icon(Icons.Default.Add, "Add manually") }
             })
     }) { pad ->
         LazyColumn(Modifier.fillMaxSize().padding(pad).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

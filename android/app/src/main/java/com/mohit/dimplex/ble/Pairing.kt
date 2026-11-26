@@ -45,7 +45,7 @@ object Pairing {
         d.createBond()
     }
 
-    suspend fun ensureBonded(ctx: Context, device: BluetoothDevice, label: String, pin: String): Boolean {
+    suspend fun ensureBonded(ctx: Context, device: BluetoothDevice, label: String, pin: String, attempts: Int = 4): Boolean {
         if (isBonded(device)) return true
         var done = CompletableDeferred<Boolean>()
         val receiver = object : BroadcastReceiver() {
@@ -85,7 +85,7 @@ object Pairing {
         ContextCompat.registerReceiver(ctx, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
         return try {
             // Heaters often refuse the first pairing attempt (seen on BlueZ too); retry.
-            for (attempt in 1..4) {
+            for (attempt in 1..attempts) {
                 if (isBonded(device)) return true
                 val started = createBondLe(device)
                 Log.i(TAG, "$label: createBond attempt $attempt started=$started")
