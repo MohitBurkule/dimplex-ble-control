@@ -42,7 +42,11 @@ class TaskerReceiver : BroadcastReceiver() {
                 for (h in targets) runCatching {
                     when (action) {
                         "SET_TEMP" -> if (temp in Dimplex.MIN_TEMP..Dimplex.MAX_TEMP) app.controller.setTemp(h, temp) else Log.w(TAG, "bad temp $temp")
-                        "SET_MODE" -> if (mode != null) app.controller.setMode(h, mode) else Log.w(TAG, "bad mode")
+                        "SET_MODE" -> when {
+                            intent.getStringExtra("mode")?.trim()?.lowercase() == "off" -> app.controller.off(h)
+                            mode != null -> app.controller.setMode(h, mode)
+                            else -> Log.w(TAG, "bad mode")
+                        }
                         "OFF" -> app.controller.off(h)
                         "REFRESH" -> app.controller.poll(h)
                         else -> Unit

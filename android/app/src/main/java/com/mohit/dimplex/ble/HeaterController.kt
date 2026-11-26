@@ -83,13 +83,17 @@ class HeaterController(private val ctx: Context, private val db: AppDb, private 
         val mode = opt { Dimplex.u8(s.read(Dimplex.HEATING_MODE), 0) }
         val sp = opt { Dimplex.le16(s.read(Dimplex.TARGET_TEMP)) }
         val room = opt { s.write(Dimplex.ROOM_TEMP, Dimplex.ROOM_TEMP_REQ); Dimplex.roomTemp(s.read(Dimplex.ROOM_TEMP)) }
-        val heating = opt {
-            (1..2).any { n ->
+        // Elements 1..2 reply [n, active, demand%]
+        val elems = opt {
+            (1..2).mapNotNull { n ->
                 s.write(Dimplex.ELEMENT_STATE, Dimplex.elementReq(n))
                 val r = s.read(Dimplex.ELEMENT_STATE)
-                r.size >= 2 && r[0].toInt() == n && r[1].toInt() != 0
+                if (r.size >= 3 && r[0].toInt() == n) Pair(r[1].toInt() != 0, r[2].toInt() and 0xff) else null
             }
         }
+        val heating = elems?.any { it.first }
+        val rated = opt { Dimplex.le16(s.read(Dimplex.POWER_LOADING)) }
+        val watts = if (rated != null && elems != null) rated * (elems.filter { it.first }.maxOfOrNull { it.second } ?: 0) / 100 else null
         val err = opt { Dimplex.u8(s.read(Dimplex.ERROR), 0) }
         val clock = opt { Dimplex.clock(s.read(Dimplex.CLOCK)) }
         val pre = opt { Dimplex.u8(s.read(Dimplex.PREEMPTIVE), 0)?.let { it != 0 } }
@@ -103,7 +107,7 @@ class HeaterController(private val ctx: Context, private val db: AppDb, private 
         }
         opt { s.rssi() }?.let { db.rssi().insert(RssiSample(heaterId = h.id, ts = System.currentTimeMillis(), rssi = it, source = "conn")) }
         if (mode == null && sp == null && room == null) throw GattException("no data read (not paired?)")
-        val r = Reading(heaterId = h.id, ts = System.currentTimeMillis(), mode = mode, setpoint = sp, roomTemp = room, heating = heating, error = err)
+        val r = Reading(heaterId = h.id, ts = System.currentTimeMillis(), mode = mode, setpoint = sp, roomTemp = room, heating = heating, error = err, watts = watts)
         db.readings().insert(r)
         broadcastState(h, r)
         return r
@@ -115,7 +119,7 @@ class HeaterController(private val ctx: Context, private val db: AppDb, private 
     suspend fun setTemp(h: HeaterConfig, temp: Int): Reading = withHeater(h) { s ->
         val t = temp.coerceIn(Dimplex.MIN_TEMP, Dimplex.MAX_TEMP)
         val mode = runCatching { Dimplex.u8(s.read(Dimplex.HEATING_MODE), 0) }.getOrNull()
-        if (mode == Dimplex.MODE_FROST) s.write(Dimplex.HEATING_MODE, Dimplex.modeCmd(Dimplex.MODE_ECO))
+        if (mode == Dimplex.MODE_FROST || mode == Dimplex.MODE_TIMER) s.write(Dimplex.HEATING_MODE, Dimplex.modeCmd(Dimplex.MODE_ECO))
         s.write(Dimplex.TARGET_TEMP, Dimplex.tempCmd(t))
         readAll(h, s)
     }
@@ -155,7 +159,13 @@ class HeaterController(private val ctx: Context, private val db: AppDb, private 
         readAll(h, s)
     }
 
-    suspend fun off(h: HeaterConfig) = setMode(h, Dimplex.MODE_FROST)
+    /** True off: write the off schedule to all 7 days, then switch to User Timer. Overwrites the timer schedule. */
+    suspend fun off(h: HeaterConfig): Reading = withHeater(h) { s ->
+        for (day in 0..6) { s.write(Dimplex.SCHEDULE, Dimplex.offScheduleCmd(day)); kotlinx.coroutines.delay(300) }
+        s.write(Dimplex.HEATING_MODE, Dimplex.timerCmd())
+        kotlinx.coroutines.delay(500)
+        readAll(h, s)
+    }
 
     /** Poll all heaters sequentially; failures are recorded in [status] and skipped. */
     suspend fun pollAll(skip: (HeaterConfig) -> Boolean = { false }) {

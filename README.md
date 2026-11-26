@@ -10,7 +10,7 @@ Copy `heaters.example.json` to `heaters.json` (gitignored) with each heater's la
 ```
 uv run --with dbus-fast cli/dimplex.py status            # all heaters
 uv run --with dbus-fast cli/dimplex.py set Kitchen 21
-uv run --with dbus-fast cli/dimplex.py off Bedroom       # Frost 7 °C (no true off exists)
+uv run --with dbus-fast cli/dimplex.py off Bedroom       # true off: timer with only 1-min 7 °C slots at 03:00 (replaces timer schedule)
 uv run --with dbus-fast cli/dimplex.py clock --sync
 uv run --with dbus-fast cli/dimplex.py watch --interval 300   # log history + RSSI
 uv run --with dbus-fast cli/dimplex.py history Kitchen --hours 48

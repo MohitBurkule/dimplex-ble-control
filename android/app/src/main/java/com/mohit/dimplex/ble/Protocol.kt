@@ -43,7 +43,7 @@ object Dimplex {
         MODE_TIMER -> "Timer"
         MODE_MANUAL -> "Manual"
         MODE_ECO -> "Eco"
-        MODE_FROST -> "Off (Frost)"
+        MODE_FROST -> "Frost"
         null -> "?"
         else -> "Mode $m"
     }
@@ -52,9 +52,28 @@ object Dimplex {
         "timer", "1" -> MODE_TIMER
         "manual", "2" -> MODE_MANUAL
         "eco", "3" -> MODE_ECO
-        "frost", "off", "4" -> MODE_FROST
+        "frost", "4" -> MODE_FROST
         else -> null
     }
+
+    val SCHEDULE = uuid(0x1002)
+    val POWER_LOADING = uuid(0x000a)
+
+    /** Timer sub-mode 3 = User Timer. */
+    fun timerCmd() = byteArrayOf(MODE_TIMER.toByte(), 3, 0, 0, 0, 0)
+
+    /**
+     * True "off": User Timer with four 1-minute 7 °C slots at 03:00-03:04 (the heater rejects empty
+     * slots). Outside slots a timer heater's target is 0 °C and the elements stay off.
+     * Write format: [1, sub=3, day, 4 x [startH,startM,endH,endM,temp,0], 0,0,0,0].
+     */
+    fun offScheduleCmd(day: Int): ByteArray {
+        val slots = (0..3).flatMap { i -> listOf(3, i, 3, i + 1, 7, 0) }
+        return (listOf(1, 3, day) + slots + listOf(0, 0, 0, 0)).map { it.toByte() }.toByteArray()
+    }
+
+    /** Off = timer with target 0 (between the off-schedule slots). */
+    fun isOff(mode: Int?, setpoint: Int?) = mode == MODE_TIMER && setpoint == 0
 
     fun modeCmd(mode: Int) = byteArrayOf(mode.toByte(), 0, 0, 0, 0, 0)
     fun tempCmd(t: Int) = byteArrayOf(t.toByte(), 0)

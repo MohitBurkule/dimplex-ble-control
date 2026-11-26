@@ -17,7 +17,7 @@ AGENT_PATH = "/com/mohit/dimplex/agent"
 DB_PATH = Path(os.environ.get("DIMPLEX_DB", Path.home() / ".local/share/dimplex/history.db"))
 
 MODES = {1: "timer", 2: "manual", 3: "eco", 4: "frost"}
-MODE_IDS = {v: k for k, v in MODES.items()} | {"off": 4}
+MODE_IDS = {v: k for k, v in MODES.items()} | {"off": 1}
 
 def cu(x):  # characteristic UUID from short id
     return f"0000{x:04x}-0000-1000-8000-00805f9b34fb"
@@ -25,6 +25,7 @@ def cu(x):  # characteristic UUID from short id
 C_MODE, C_TARGET, C_RANGE, C_ROOM, C_TRAC, C_MODEL, C_ERROR = (
     cu(0x1001), cu(0x1023), cu(0x1006), cu(0x0008), cu(0x0002), cu(0x2005), cu(0x1011))
 C_CLOCK = cu(0x0006)
+C_SCHEDULE, C_POWER = cu(0x1002), cu(0x000a)
 
 
 # ---------- config ----------
@@ -223,10 +224,13 @@ class Heater:
         mode = await self.read(C_MODE)
         target = await self.read(C_TARGET)
         await self.write(C_ROOM, [1, 0, 0]); room = await self.read(C_ROOM)
-        heating = False  # elements numbered from 1; reply [n, active, demand%]
+        heating, demand = False, 0  # elements numbered from 1; reply [n, active, demand%]
         for n in (1, 2):
             await self.write(C_TRAC, [n, 0, 0]); r = await self.read(C_TRAC)
-            heating |= len(r) >= 2 and r[0] == n and r[1] != 0
+            if len(r) >= 3 and r[0] == n and r[1]:
+                heating, demand = True, max(demand, r[2])
+        p = await self.read(C_POWER)
+        watts = (p[0] | p[1] << 8) * demand // 100 if len(p) >= 2 else None  # estimate, not metered
         err = await self.read(C_ERROR)
         model = (await self.read(C_MODEL)).split(b"\0")[0].decode(errors="replace")
         rssi = None
@@ -238,7 +242,7 @@ class Heater:
             "label": self.h["label"], "model": model,
             "mode": MODES.get(mode[0], str(mode[0])), "target": target[0],
             "room": room[1] + room[2] / 10 if len(room) >= 3 else None,
-            "heating": heating,
+            "heating": heating, "watts": watts,
             "error": err[0] if err else None, "rssi": rssi, "ts": int(time.time()),
         }
 
@@ -250,12 +254,23 @@ class Heater:
             pass
         if not lo <= t <= hi:
             raise RuntimeError(f"target must be {lo}-{hi} °C")
-        if (await self.read(C_MODE))[0] not in (2, 3):  # frost/timer: leave it first
+        if (await self.read(C_MODE))[0] not in (2, 3):  # frost/timer/off: leave it first
             await self.write(C_MODE, [3, 0, 0, 0, 0, 0])
         await self.write(C_TARGET, [t, 0])
 
     async def set_mode(self, m):
+        if m == "off":
+            return await self.off()
         await self.write(C_MODE, [MODE_IDS[m], 0, 0, 0, 0, 0])
+
+    async def off(self):
+        """True off: User Timer whose only slots are four 1-minute 7 °C slots at 03:00-03:04
+        (empty slots are rejected). Between slots the target is 0 °C. Overwrites the timer schedule."""
+        slots = [b for i in range(4) for b in (3, i, 3, i + 1, 7, 0)]
+        for day in range(7):
+            await self.write(C_SCHEDULE, [1, 3, day] + slots + [0, 0, 0, 0])
+            await asyncio.sleep(0.3)
+        await self.write(C_MODE, [1, 3, 0, 0, 0, 0])
 
     async def clock(self):
         c = await self.read(C_CLOCK)
@@ -294,9 +309,11 @@ def save(s):
 
 def show(s):
     room = f"{s['room']:.1f}°C" if s["room"] is not None else "?"
+    if s["mode"] == "timer" and s["target"] == 0:
+        s = s | {"mode": "OFF"}
     heat = {True: "heating", False: "idle", None: "?"}[s["heating"]]
     print(f"{s['label']:<12} {s['mode']:<7} target {s['target']:>2}°C  room {room:<7} {heat:<8}"
-          f" rssi {s['rssi']}  {s['model']}" + (f"  ERROR {s['error']}" if s["error"] else ""))
+          f"{'  ~%dW' % s['watts'] if s.get('watts') else ''}  rssi {s['rssi']}  {s['model']}" + (f"  ERROR {s['error']}" if s["error"] else ""))
 
 
 # ---------- commands ----------
@@ -428,7 +445,7 @@ def main():
         p = sp.add_parser(n); p.add_argument("heater", nargs="?", default="all")
     p = sp.add_parser("set", help="set target °C"); p.add_argument("heater"); p.add_argument("temp", type=int)
     p = sp.add_parser("mode"); p.add_argument("heater"); p.add_argument("mode", choices=list(MODE_IDS))
-    p = sp.add_parser("off", help="frost protection (7 °C): there is no true off"); p.add_argument("heater")
+    p = sp.add_parser("off", help="true off (timer with no real slots); overwrites the timer schedule"); p.add_argument("heater")
     p = sp.add_parser("clock", help="show heater clock; --sync sets it to laptop time")
     p.add_argument("heater", nargs="?", default="all"); p.add_argument("--sync", action="store_true")
     p = sp.add_parser("watch", help="log status + RSSI forever"); p.add_argument("heater", nargs="?", default="all")
@@ -444,7 +461,7 @@ def main():
     if a.cmd == "near":
         return cmd_near(heaters, a)
     if a.cmd == "off":
-        a.cmd, a.mode = "mode", "frost"
+        a.cmd, a.mode = "mode", "off"
     if a.cmd == "on":
         a.cmd, a.mode = "mode", "eco"
     hs = pick(heaters, a.heater)

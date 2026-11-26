@@ -160,7 +160,8 @@ private fun HeaterCard(h: HeaterConfig, r: Reading?, st: LinkStatus?, rssi: Heat
                     Text("avg ${avgHours}h: " + (avg?.let { "%.1f °C".format(it) } ?: "—"), style = MaterialTheme.typography.titleMedium)
                 }
                 Text(buildString {
-                    append("Target ${r.setpoint ?: "?"} °C  ·  ${Dimplex.modeName(r.mode)}")
+                    append(if (Dimplex.isOff(r.mode, r.setpoint)) "Off" else "Target ${r.setpoint ?: "?"} °C  ·  ${Dimplex.modeName(r.mode)}")
+                    r.watts?.let { if (it > 0) append("  ·  ~$it W") }
                     if (r.heating == true) append("  ·  heating")
                     if ((r.error ?: 0) != 0) append("  ·  ERROR ${r.error}")
                 }, style = MaterialTheme.typography.bodyLarge)
@@ -176,7 +177,7 @@ private fun HeaterCard(h: HeaterConfig, r: Reading?, st: LinkStatus?, rssi: Heat
             }
             Text("Target ${slider.toInt()} °C", style = MaterialTheme.typography.labelMedium)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(Dimplex.MODE_MANUAL to "Manual", Dimplex.MODE_ECO to "Eco", Dimplex.MODE_FROST to "Frost (Off)", Dimplex.MODE_TIMER to "Timer").forEach { (m, name) ->
+                listOf(Dimplex.MODE_MANUAL to "Manual", Dimplex.MODE_ECO to "Eco", Dimplex.MODE_FROST to "Frost", Dimplex.MODE_TIMER to "Timer").forEach { (m, name) ->
                     FilterChip(selected = r?.mode == m, onClick = { run("Set mode") { ctl.setMode(h, m) } }, label = { Text(name) })
                 }
                 Spacer(Modifier.width(4.dp))

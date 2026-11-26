@@ -22,6 +22,8 @@ data class Reading(
     val roomTemp: Double?,
     val heating: Boolean?,
     val error: Int?,
+    /** Estimated draw: rated watts (0x000a) x element demand %. Not metered. */
+    val watts: Int? = null,
 )
 
 @Entity(tableName = "rssi", indices = [Index("heaterId", "ts"), Index("ts")])
@@ -72,7 +74,7 @@ interface RssiDao {
     suspend fun prune(before: Long)
 }
 
-@Database(entities = [Reading::class, RssiSample::class], version = 1, exportSchema = true)
+@Database(entities = [Reading::class, RssiSample::class], version = 2, exportSchema = true)
 abstract class AppDb : RoomDatabase() {
     abstract fun readings(): ReadingDao
     abstract fun rssi(): RssiDao
