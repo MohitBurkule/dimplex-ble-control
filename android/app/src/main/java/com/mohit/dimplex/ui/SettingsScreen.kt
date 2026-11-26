@@ -52,6 +52,7 @@ fun SettingsScreen(nav: NavController) {
             navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } })
     }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            com.mohit.dimplex.update.UpdateCard(always = true)
             Toggle("Background tracking service", service) {
                 service = it; s.serviceEnabled = it
                 if (it) TrackerService.start(ctx) else TrackerService.stop(ctx)

@@ -14,8 +14,9 @@ android {
         applicationId = "com.mohit.dimplex"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        // CI passes -PversionCode=<run number>; releases are tagged build-<n> for self-update
+        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 1
+        versionName = "0.2.${versionCode}"
     }
 
     buildTypes {

@@ -116,6 +116,7 @@ fun DashboardScreen(nav: NavController) {
                     style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp),
                 )
             }
+            item { com.mohit.dimplex.update.UpdateCard() }
             if (heaters.isEmpty()) item { Text("No heaters configured. Tap the list icon to import a JSON config or add one.") }
             items(heaters, key = { it.id }) { h ->
                 HeaterCard(h, latest.firstOrNull { it.heaterId == h.id }, status[h.id], rssi.firstOrNull { it.heaterId == h.id },
