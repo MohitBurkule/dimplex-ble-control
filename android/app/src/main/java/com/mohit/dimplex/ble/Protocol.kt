@@ -59,7 +59,8 @@ object Dimplex {
     fun modeCmd(mode: Int) = byteArrayOf(mode.toByte(), 0, 0, 0, 0, 0)
     fun tempCmd(t: Int) = byteArrayOf(t.toByte(), 0)
     val ROOM_TEMP_REQ = byteArrayOf(1, 0, 0)
-    val ELEMENT_REQ = byteArrayOf(0, 0, 0)
+    // Elements are numbered from 1 (PLX has two). Reply: [n, active, demand%]
+    fun elementReq(n: Int) = byteArrayOf(n.toByte(), 0, 0)
 
     /** 0x0006 [20, YY, MM, DD, hh, mm, dst] -> epoch ms in local zone, or null. */
     fun clock(b: ByteArray?): Long? {

@@ -223,7 +223,10 @@ class Heater:
         mode = await self.read(C_MODE)
         target = await self.read(C_TARGET)
         await self.write(C_ROOM, [1, 0, 0]); room = await self.read(C_ROOM)
-        await self.write(C_TRAC, [0, 0, 0]); trac = await self.read(C_TRAC)
+        heating = False  # elements numbered from 1; reply [n, active, demand%]
+        for n in (1, 2):
+            await self.write(C_TRAC, [n, 0, 0]); r = await self.read(C_TRAC)
+            heating |= len(r) >= 2 and r[0] == n and r[1] != 0
         err = await self.read(C_ERROR)
         model = (await self.read(C_MODEL)).split(b"\0")[0].decode(errors="replace")
         rssi = None
@@ -235,7 +238,7 @@ class Heater:
             "label": self.h["label"], "model": model,
             "mode": MODES.get(mode[0], str(mode[0])), "target": target[0],
             "room": room[1] + room[2] / 10 if len(room) >= 3 else None,
-            "heating": bool(trac[1]) if len(trac) >= 2 else None,
+            "heating": heating,
             "error": err[0] if err else None, "rssi": rssi, "ts": int(time.time()),
         }
 

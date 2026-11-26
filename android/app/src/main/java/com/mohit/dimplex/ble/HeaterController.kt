@@ -83,7 +83,13 @@ class HeaterController(private val ctx: Context, private val db: AppDb, private 
         val mode = opt { Dimplex.u8(s.read(Dimplex.HEATING_MODE), 0) }
         val sp = opt { Dimplex.le16(s.read(Dimplex.TARGET_TEMP)) }
         val room = opt { s.write(Dimplex.ROOM_TEMP, Dimplex.ROOM_TEMP_REQ); Dimplex.roomTemp(s.read(Dimplex.ROOM_TEMP)) }
-        val heating = opt { s.write(Dimplex.ELEMENT_STATE, Dimplex.ELEMENT_REQ); Dimplex.u8(s.read(Dimplex.ELEMENT_STATE), 1)?.let { it != 0 } }
+        val heating = opt {
+            (1..2).any { n ->
+                s.write(Dimplex.ELEMENT_STATE, Dimplex.elementReq(n))
+                val r = s.read(Dimplex.ELEMENT_STATE)
+                r.size >= 2 && r[0].toInt() == n && r[1].toInt() != 0
+            }
+        }
         val err = opt { Dimplex.u8(s.read(Dimplex.ERROR), 0) }
         val clock = opt { Dimplex.clock(s.read(Dimplex.CLOCK)) }
         val pre = opt { Dimplex.u8(s.read(Dimplex.PREEMPTIVE), 0)?.let { it != 0 } }
