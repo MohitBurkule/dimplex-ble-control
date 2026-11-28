@@ -54,6 +54,9 @@ interface ReadingDao {
     @Query("SELECT heaterId, AVG(roomTemp) AS avg FROM readings WHERE ts >= :since AND roomTemp IS NOT NULL GROUP BY heaterId")
     fun avgRoomTemp(since: Long): Flow<List<HeaterAvg>>
 
+    @Query("SELECT * FROM readings WHERE (:id IS NULL OR heaterId = :id) ORDER BY ts")
+    suspend fun all(id: String?): List<Reading>
+
     @Query("DELETE FROM readings WHERE ts < :before")
     suspend fun prune(before: Long)
 }
@@ -71,6 +74,9 @@ interface RssiDao {
 
     @Query("SELECT heaterId, AVG(rssi) AS rssi, MAX(ts) AS ts FROM rssi WHERE ts >= :since GROUP BY heaterId")
     fun recent(since: Long): Flow<List<HeaterRssi>>
+
+    @Query("SELECT * FROM rssi WHERE (:id IS NULL OR heaterId = :id) ORDER BY ts")
+    suspend fun all(id: String?): List<RssiSample>
 
     @Query("DELETE FROM rssi WHERE ts < :before")
     suspend fun prune(before: Long)

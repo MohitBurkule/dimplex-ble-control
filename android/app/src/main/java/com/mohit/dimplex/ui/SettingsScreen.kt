@@ -53,6 +53,7 @@ fun SettingsScreen(nav: NavController) {
     }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             com.mohit.dimplex.update.UpdateCard(always = true)
+            Row(verticalAlignment = Alignment.CenterVertically) { Text("Export history (all heaters, CSV)", Modifier.weight(1f)); ExportButton(null) }
             Toggle("Background tracking service", service) {
                 service = it; s.serviceEnabled = it
                 if (it) TrackerService.start(ctx) else TrackerService.stop(ctx)

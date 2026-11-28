@@ -60,6 +60,9 @@ fun DetailScreen(nav: NavController, id: String) {
     Scaffold(topBar = {
         TopAppBar(title = { Text(h?.label ?: id) }, navigationIcon = {
             IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+        }, actions = {
+            androidx.compose.material3.TextButton(onClick = { nav.navigate("timer/$id") }) { Text("Timer") }
+            ExportButton(id)
         })
     }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).padding(12.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {

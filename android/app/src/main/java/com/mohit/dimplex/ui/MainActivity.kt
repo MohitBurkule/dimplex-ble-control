@@ -91,6 +91,7 @@ fun AppNav() {
         composable("settings") { SettingsScreen(nav) }
         composable("floorplan") { FloorplanScreen(nav) }
         composable("timeline") { TimelineScreen(nav) }
+        composable("timer/{id}") { TimerScreen(nav, it.arguments?.getString("id") ?: "") }
         composable("discover") { DiscoverScreen(nav) }
     }
 }

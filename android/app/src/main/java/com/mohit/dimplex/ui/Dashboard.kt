@@ -123,7 +123,7 @@ fun DashboardScreen(nav: NavController) {
             items(heaters, key = { it.id }) { h ->
                 HeaterCard(h, latest.firstOrNull { it.heaterId == h.id }, status[h.id], rssi.firstOrNull { it.heaterId == h.id },
                     avgs.firstOrNull { it.heaterId == h.id }?.avg, avgHours, now, scope,
-                    onOpen = { nav.navigate("detail/${h.id}") })
+                    onOpen = { nav.navigate("detail/${h.id}") }, onTimer = { nav.navigate("timer/${h.id}") })
             }
         }
     }
@@ -137,7 +137,7 @@ fun DashboardScreen(nav: NavController) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun HeaterCard(h: HeaterConfig, r: Reading?, st: LinkStatus?, rssi: HeaterRssi?, avg: Double?, avgHours: Int, now: Long, scope: CoroutineScope, onOpen: () -> Unit) {
+private fun HeaterCard(h: HeaterConfig, r: Reading?, st: LinkStatus?, rssi: HeaterRssi?, avg: Double?, avgHours: Int, now: Long, scope: CoroutineScope, onOpen: () -> Unit, onTimer: () -> Unit) {
     val ctx = LocalContext.current
     val ctl = ctx.app.controller
     var slider by remember(r?.setpoint) { mutableFloatStateOf((r?.setpoint ?: 20).toFloat()) }
@@ -181,6 +181,7 @@ private fun HeaterCard(h: HeaterConfig, r: Reading?, st: LinkStatus?, rssi: Heat
                     FilterChip(selected = r?.mode == m && r.off != true, onClick = { run("Set mode") { ctl.setMode(h, m) } }, label = { Text(name) })
                 }
                 FilterChip(selected = r?.off == true, onClick = { run("Off") { ctl.off(h) } }, label = { Text("Off") })
+                TextButton(onClick = onTimer) { Text("Edit timer") }
                 TextButton(onClick = { run("Refresh") { ctl.poll(h) } }) { Text("Refresh") }
             }
         }

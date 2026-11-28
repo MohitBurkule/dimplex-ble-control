@@ -171,6 +171,33 @@ class HeaterController(private val ctx: Context, private val db: AppDb, private 
         readAll(h, s)
     }
 
+    /** Read the 7-day schedule (day 0..6), raw slots including dummies. */
+    suspend fun readSchedule(h: HeaterConfig): List<List<Dimplex.Slot>> = withHeater(h) { s -> readDays(s) }
+
+    private suspend fun readDays(s: GattSession): List<List<Dimplex.Slot>> = (0..6).map { day ->
+        s.write(Dimplex.SCHEDULE, Dimplex.scheduleReadCmd(day)); delay(400)
+        Dimplex.parseSchedule(s.read(Dimplex.SCHEDULE)) ?: throw GattException("short schedule read (day $day)")
+    }
+
+    /**
+     * Write user slots (per day, real slots only, max 4) then switch to User Timer and verify read-back.
+     * Returns null on success or a mismatch description.
+     */
+    suspend fun writeSchedule(h: HeaterConfig, days: List<List<Dimplex.Slot>>): String? = withHeater(h) { s ->
+        for (day in 0..6) { s.write(Dimplex.SCHEDULE, Dimplex.scheduleWriteCmd(day, days[day])); delay(300) }
+        s.write(Dimplex.HEATING_MODE, Dimplex.timerCmd())
+        delay(500)
+        val back = readDays(s)
+        val bad = (0..6).filter { d -> back[d] != Dimplex.padSlots(days[d]) }
+        val mode = Dimplex.u8(s.read(Dimplex.HEATING_MODE), 0)
+        readAll(h, s)
+        when {
+            bad.isNotEmpty() -> "schedule not accepted for day(s) ${bad.joinToString { DAYS[it] }}"
+            mode != Dimplex.MODE_TIMER -> "mode is ${Dimplex.modeName(mode)}, not Timer"
+            else -> null
+        }
+    }
+
     /** Poll all heaters sequentially; failures are recorded in [status] and skipped. */
     suspend fun pollAll(skip: (HeaterConfig) -> Boolean = { false }) {
         for (h in store.list.value) {
@@ -195,6 +222,7 @@ class HeaterController(private val ctx: Context, private val db: AppDb, private 
 
     companion object {
         const val TAG = "DimplexCtl"
+        val DAYS = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
         const val ACTION_STATE = "com.mohit.dimplex.STATE"
     }
 }

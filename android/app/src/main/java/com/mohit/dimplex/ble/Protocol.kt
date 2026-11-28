@@ -72,6 +72,40 @@ object Dimplex {
         return (listOf(1, 3, day) + slots + listOf(0, 0, 0, 0)).map { it.toByte() }.toByteArray()
     }
 
+    /** One timer slot, minutes since midnight. */
+    data class Slot(val start: Int, val end: Int, val temp: Int) {
+        val isDummy get() = end - start == 1 && temp == MIN_TEMP
+    }
+
+    /** Parse a 31-byte schedule read-back into 4 slots (null if too short). */
+    fun parseSchedule(b: ByteArray?): List<Slot>? {
+        if (b == null || b.size < 27) return null
+        val v = b.map { it.toInt() and 0xff }
+        return (0..3).map { i -> val o = 3 + i * 6; Slot(v[o] * 60 + v[o + 1], v[o + 2] * 60 + v[o + 3], v[o + 4]) }
+    }
+
+    /**
+     * Pad user slots to 4 with 1-minute 7 °C dummies at free minutes (the heater rejects empty slots),
+     * sorted chronologically.
+     */
+    fun padSlots(user: List<Slot>): List<Slot> {
+        require(user.size <= 4)
+        val out = user.toMutableList()
+        fun free(m: Int) = out.none { m < it.end && m + 1 > it.start }
+        var m = 180
+        var guard = 0
+        while (out.size < 4 && guard++ < 1440) {
+            if (free(m)) out += Slot(m, m + 1, MIN_TEMP)
+            m = (m + 1) % 1439
+        }
+        return out.sortedBy { it.start }
+    }
+
+    fun scheduleWriteCmd(day: Int, slots: List<Slot>): ByteArray {
+        val bytes = padSlots(slots).flatMap { listOf(it.start / 60, it.start % 60, it.end / 60, it.end % 60, it.temp, 0) }
+        return (listOf(1, 3, day) + bytes + listOf(0, 0, 0, 0)).map { it.toByte() }.toByteArray()
+    }
+
     fun scheduleReadCmd(day: Int) = byteArrayOf(0, 3, day.toByte())
 
     /** True if a schedule read-back (31 bytes) is our off schedule. */
